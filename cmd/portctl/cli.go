@@ -62,7 +62,10 @@ func runCLI(args []string) int {
 	if !cfg.Force {
 		var resp string
 		fmt.Fprint(os.Stderr, "Proceed to send signal(s)? [y/N]: ")
-		fmt.Scanln(&resp)
+		if _, err := fmt.Scanln(&resp); err != nil {
+			fmt.Fprintln(os.Stderr, "input error:", err)
+			return 1
+		}
 		if resp != "y" && resp != "Y" {
 			fmt.Fprintln(os.Stderr, "aborted by user")
 			return 0

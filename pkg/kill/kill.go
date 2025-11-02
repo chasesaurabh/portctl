@@ -67,9 +67,8 @@ func signalToNumber(sig string) (int, error) {
 	}
 	// strip SIG prefix
 	s := strings.ToUpper(sig)
-	if strings.HasPrefix(s, "SIG") {
-		s = s[3:]
-	}
+	// Normalize both SIGTERM and TERM forms by trimming a leading "SIG" if present
+	s = strings.TrimPrefix(s, "SIG")
 	switch s {
 	case "TERM":
 		return int(syscall.SIGTERM), nil

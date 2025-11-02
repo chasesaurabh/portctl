@@ -13,7 +13,7 @@ import (
 
 func Text(w io.Writer, listeners []discover.Listener) {
 	for _, l := range listeners {
-		fmt.Fprintf(w, "PID=%d USER=%s CMD=%s ADDR=%s\n", l.PID, l.User, l.Cmd, l.Address)
+		_, _ = fmt.Fprintf(w, "PID=%d USER=%s CMD=%s ADDR=%s\n", l.PID, l.User, l.Cmd, l.Address)
 	}
 }
 
@@ -53,5 +53,5 @@ func Format(w io.Writer, format string, listeners []discover.Listener) error {
 }
 
 func PrintDefault(listeners []discover.Listener) {
-	Format(os.Stdout, "text", listeners)
+	_ = Format(os.Stdout, "text", listeners)
 }

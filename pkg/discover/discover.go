@@ -148,6 +148,8 @@ func fieldsN(s string, n int) []string {
 
 func atoiSafe(s string) int {
 	var v int
-	fmt.Sscanf(s, "%d", &v)
+	if _, err := fmt.Sscanf(s, "%d", &v); err != nil {
+		return 0
+	}
 	return v
 }
