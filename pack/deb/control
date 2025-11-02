@@ -1,0 +1,10 @@
+Package: portctl
+Version: 0.0.0
+Section: utils
+Priority: optional
+Architecture: amd64
+Essential: no
+Maintainer: Saurabh Chase <chasesaurabh@gmail.com>
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: portctl — discover and kill processes listening on a TCP port
+ A small CLI to discover processes binding a TCP port and optionally send signals to them.

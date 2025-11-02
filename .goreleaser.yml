@@ -1,0 +1,40 @@
+# Minimal goreleaser configuration for portctl
+version: 2
+project_name: portctl
+
+builds:
+  - binary: portctl
+    main: ./cmd/portctl
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+
+changelog:
+  use: git
+
+nfpms:
+  - id: default
+    package_name: portctl
+    formats:
+      - deb
+      - rpm
+    maintainer: "Saurabh Chase <chasesaurabh@gmail.com>"
+    license: MIT
+    description: "Find and free processes binding a TCP port"
+
+brews:
+  - name: portctl
+    homepage: https://github.com/chasesaurabh/portctl
+    description: "Find and free processes binding a TCP port"
+    test: |
+      system "#{bin}/portctl", "--help"
+
+    repository:
+      name: chasesaurabh/homebrew-portctl

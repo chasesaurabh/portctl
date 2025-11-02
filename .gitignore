@@ -1,0 +1,10 @@
+/.idea
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+/vendor
+/bin
+/dist
+/.goreleaser
