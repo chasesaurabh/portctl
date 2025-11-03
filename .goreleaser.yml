@@ -36,6 +36,6 @@ brews:
     test: |
       system "#{bin}/portctl", "--help"
 
-    repository: chasesaurabh/homebrew-portctl
-
-    folder: Formula
+    repository:
+      owner: chasesaurabh
+      name: homebrew-portctl
