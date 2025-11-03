@@ -39,5 +39,3 @@ brews:
     repository:
       owner: chasesaurabh
       name: homebrew-portctl
-
-    folder: Formula
