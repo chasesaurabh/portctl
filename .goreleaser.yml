@@ -37,4 +37,5 @@ brews:
       system "#{bin}/portctl", "--help"
 
     repository:
-      name: chasesaurabh/homebrew-portctl
+      owner: chasesaurabh
+      name: homebrew-portctl
