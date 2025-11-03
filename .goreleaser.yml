@@ -35,3 +35,8 @@ brews:
     description: "Find and free processes binding a TCP port"
     test: |
       system "#{bin}/portctl", "--help"
+
+    repository:
+      owner: chasesaurabh
+      name: homebrew-portctl
+      folder: Formula
