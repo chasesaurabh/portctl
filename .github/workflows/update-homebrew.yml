@@ -1,0 +1,71 @@
+name: Update Homebrew Formula
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  update-brew:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+
+      - name: Generate Homebrew formula (GoReleaser snapshot)
+        uses: goreleaser/goreleaser-action@v4
+        with:
+          version: latest
+          args: release --snapshot
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push formula to tap (branch + PR)
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          TAP_OWNER: chasesaurabh
+          TAP_REPO: homebrew-portctl
+        run: |
+          set -euo pipefail
+          if [ -z "${HOMEBREW_TAP_TOKEN:-}" ]; then
+            echo "HOMEBREW_TAP_TOKEN not set; skipping tap update"
+            exit 0
+          fi
+
+          FORMULA=dist/homebrew/portctl.rb
+          if [ ! -f "${FORMULA}" ]; then
+            echo "No formula generated at ${FORMULA}; skipping"
+            exit 0
+          fi
+
+          TMP=/tmp/homebrew-tap
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/${TAP_OWNER}/${TAP_REPO}.git" "${TMP}"
+          mkdir -p "${TMP}/Formula"
+          cp "${FORMULA}" "${TMP}/Formula/portctl.rb"
+          cd "${TMP}"
+          git config user.email "actions@github.com"
+          git config user.name "github-actions[bot]"
+          BRANCH=update-portctl-$(date +%s)
+          git checkout -b "${BRANCH}"
+          git add Formula/portctl.rb
+          git commit -m "ci: update portctl formula from portctl main"
+          git push "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/${TAP_OWNER}/${TAP_REPO}.git" HEAD:refs/heads/${BRANCH}
+
+          # Open a PR on the tap
+          PR_BODY=$(cat <<-EOF
+          Automated formula update from portctl main
+
+          This PR was created by CI to update Formula/portctl.rb.
+          EOF
+          )
+
+          curl -s -X POST \
+            -H "Authorization: token ${HOMEBREW_TAP_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/${TAP_OWNER}/${TAP_REPO}/pulls \
+            -d "{\"title\": \"chore: update portctl formula\", \"head\": \"${BRANCH}\", \"base\": \"main\", \"body\": \"${PR_BODY//"/\"}\"}"
