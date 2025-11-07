@@ -26,7 +26,8 @@ jobs:
       - name: Generate Homebrew formula (snapshot)
         run: |
           set -euo pipefail
-          goreleaser release --snapshot --skip-publish
+          # --snapshot avoids publishing; explicit --skip-publish is not supported
+          goreleaser release --snapshot
 
       - name: Create PR in tap with updated formula
         env:
