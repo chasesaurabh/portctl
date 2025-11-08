@@ -32,6 +32,7 @@ jobs:
       - name: Create PR in tap with updated formula
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          AUTOMERGE_SHARED_SECRET: ${{ secrets.AUTOMERGE_SHARED_SECRET }}
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REF: ${{ github.ref }}
@@ -56,11 +57,22 @@ jobs:
           git commit -m "chore: update portctl formula from ${GITHUB_REPOSITORY}@${GITHUB_REF#refs/heads/}" || true
           git push https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/${TAP}.git HEAD:refs/heads/${BRANCH}
 
+          # create HMAC-signed PR body so the tap can verify origin
+          # Payload: <repo>:<commit>
+          PAYLOAD="${GITHUB_REPOSITORY}:${GITHUB_SHA}"
+          if [ -n "${AUTOMERGE_SHARED_SECRET:-}" ]; then
+            SIG=$(printf "%s" "$PAYLOAD" | openssl dgst -sha256 -hmac "${AUTOMERGE_SHARED_SECRET}" -binary | xxd -p -c 256)
+          else
+            SIG=""
+          fi
+
+          PR_BODY="Automated update of Homebrew formula from ${GITHUB_REPOSITORY}\nAutomerge-Payload: ${PAYLOAD}\nAutomerge-Signature: ${SIG}"
+
           # create PR using GitHub REST API to avoid requiring 'read:org' scope
           PR_PAYLOAD=$(jq -n --arg title "chore: update portctl formula" \
             --arg head "${BRANCH}" \
             --arg base "main" \
-            --arg body "Automated update of Homebrew formula from ${GITHUB_REPOSITORY}" \
+            --arg body "$PR_BODY" \
             '{title: $title, head: $head, base: $base, body: $body}')
 
           PR_RESP=$(curl -s -X POST \
