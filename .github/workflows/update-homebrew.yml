@@ -56,12 +56,23 @@ jobs:
           git commit -m "chore: update portctl formula from ${GITHUB_REPOSITORY}@${GITHUB_REF#refs/heads/}" || true
           git push https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/${TAP}.git HEAD:refs/heads/${BRANCH}
 
-          # create PR using GitHub CLI (install via script if missing)
-          if ! command -v gh >/dev/null 2>&1; then
-            curl -fsSL https://github.com/cli/cli/releases/latest/download/gh_2.27.0_linux_amd64.tar.gz -o /tmp/gh.tar.gz
-            tar -xzf /tmp/gh.tar.gz -C /tmp
-            sudo mv /tmp/gh_2.27.0_linux_amd64/bin/gh /usr/local/bin/gh
-          fi
+          # create PR using GitHub REST API to avoid requiring 'read:org' scope
+          PR_PAYLOAD=$(jq -n --arg title "chore: update portctl formula" \
+            --arg head "${BRANCH}" \
+            --arg base "main" \
+            --arg body "Automated update of Homebrew formula from ${GITHUB_REPOSITORY}" \
+            '{title: $title, head: $head, base: $base, body: $body}')
 
-          gh auth login --with-token <<< "${HOMEBREW_TAP_TOKEN}"
-          gh pr create --title "chore: update portctl formula" --body "Automated update of Homebrew formula from ${GITHUB_REPOSITORY}" --base main --head ${BRANCH} --repo ${TAP}
+          PR_RESP=$(curl -s -X POST \
+            -H "Authorization: token ${HOMEBREW_TAP_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/${TAP}/pulls \
+            -d "$PR_PAYLOAD")
+
+          PR_URL=$(echo "$PR_RESP" | python3 -c 'import sys, json; j=json.load(sys.stdin); print(j.get("html_url",""))')
+          if [ -z "$PR_URL" ]; then
+            echo "Failed to create PR. Response from API:" >&2
+            echo "$PR_RESP" >&2
+            exit 1
+          fi
+          echo "Created PR: $PR_URL"
