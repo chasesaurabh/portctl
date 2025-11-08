@@ -1,0 +1,98 @@
+--- a/.github/workflows/automerge-formula.yml
++++ b/.github/workflows/automerge-formula.yml
+@@
++name: Auto-merge portctl formula PRs
++
++on:
++  pull_request:
++    types: [opened, reopened, synchronize, labeled]
++
++jobs:
++  validate-and-merge:
++    runs-on: ubuntu-latest
++    if: ${{ github.event.pull_request.draft == false }}
++    steps:
++      - name: Validate PR origin and contents
++        id: validate
++        uses: actions/github-script@v6
++        with:
++          script: |
++            const pr = context.payload.pull_request;
++            const prNumber = pr.number;
++            const owner = context.repo.owner;
++            const repo = context.repo.repo;
++
++            const body = pr.body || "";
++            const payloadLine = body.split('\n').find(l => l.startsWith('Automerge-Payload:'));
++            const sigLine = body.split('\n').find(l => l.startsWith('Automerge-Signature:'));
++            if (!payloadLine || !sigLine) {
++              core.setFailed('Missing Automerge-Payload or Automerge-Signature in PR body.');
++            }
++            const payload = payloadLine.split(':').slice(1).join(':').trim();
++            const sigHex = sigLine.split(':').slice(1).join(':').trim();
++
++            const files = await github.paginate(github.rest.pulls.listFiles, { owner, repo, pull_number: prNumber });
++            if (files.length !== 1 || files[0].filename !== 'Formula/portctl.rb') {
++              core.setFailed(`PR must change exactly Formula/portctl.rb. Files: ${files.map(f=>f.filename).join(', ')}`);
++            }
++
++            const commits = await github.paginate(github.rest.pulls.listCommits, { owner, repo, pull_number: prNumber });
++            const commitMatches = commits.some(c =>
++              (c.commit && c.commit.message && c.commit.message.includes('chasesaurabh/portctl')) ||
++              (c.author && c.author.login && c.author.login === 'github-actions[bot]')
++            );
++            if (!commitMatches) {
++              core.setFailed('No commit indicates origin from chasesaurabh/portctl or was authored by actions bot.');
++            }
++
++            return { prNumber, payload, sigHex };
++      - name: Verify HMAC signature and merge
++        env:
++          AUTOMERGE_SHARED_SECRET: ${{ secrets.AUTOMERGE_SHARED_SECRET }}
++          OWNER: ${{ github.repository_owner }}
++          REPO: ${{ github.event.repository.name }}
++          PR_NUMBER: ${{ steps.validate.outputs.prNumber }}
++          PAYLOAD: ${{ steps.validate.outputs.payload }}
++          SIGHEX: ${{ steps.validate.outputs.sigHex }}
++        run: |
++          set -euo pipefail
++          if [ -z "${AUTOMERGE_SHARED_SECRET:-}" ]; then
++            echo "AUTOMERGE_SHARED_SECRET not set, refusing to auto-merge" >&2
++            exit 1
++          fi
++
++          if [ -z "$PAYLOAD" ] || [ -z "$SIGHEX" ]; then
++            echo "Missing payload or signature outputs" >&2
++            exit 1
++          fi
++
++          CALC_SIG=$(printf "%s" "$PAYLOAD" | openssl dgst -sha256 -hmac "${AUTOMERGE_SHARED_SECRET}" -binary | xxd -p -c 256)
++          if [ "$CALC_SIG" != "$SIGHEX" ]; then
++            echo "Signature mismatch: expected $SIGHEX computed $CALC_SIG" >&2
++            echo "Refusing to merge." >&2
++            exit 1
++          fi
++
++          PR_JSON=$(curl -s -H "Accept: application/vnd.github+json" -H "Authorization: token ${GITHUB_TOKEN}" \
++            "https://api.github.com/repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}")
++          MERGEABLE_STATE=$(echo "$PR_JSON" | python3 -c "import sys, json; print(json.load(sys.stdin).get('mergeable_state'))")
++          echo "mergeable_state=$MERGEABLE_STATE"
++          if [ "$MERGEABLE_STATE" = "dirty" ] || [ "$MERGEABLE_STATE" = "blocked" ] || [ "$MERGEABLE_STATE" = "unknown" ]; then
++            echo "PR not in acceptable mergeable state: $MERGEABLE_STATE" >&2
++            exit 1
++          fi
++
++          MERGE_RESP=$(curl -s -X PUT \
++            -H "Accept: application/vnd.github+json" \
++            -H "Authorization: token ${GITHUB_TOKEN}" \
++            "https://api.github.com/repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/merge" \
++            -d '{"merge_method":"merge"}')
++
++          MERGED=$(echo "$MERGE_RESP" | python3 -c "import sys, json; print(json.load(sys.stdin).get('merged', False))")
++          if [ "$MERGED" != "True" ] && [ "$MERGED" != "true" ]; then
++            echo "Merge failed. Response: $MERGE_RESP" >&2
++            exit 1
++          fi
++          echo "Merged PR #${PR_NUMBER} successfully."
++
+*** End Patch
