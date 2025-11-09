@@ -27,6 +27,11 @@ jobs:
       - name: Ensure integration scripts are executable
         run: chmod +x tests/integration/*.sh
 
+
+      - name: Ensure bash is installed (Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y bash
+
       - name: Install deps (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
         run: |
