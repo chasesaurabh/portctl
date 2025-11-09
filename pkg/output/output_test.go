@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kumarsaurabh/killport/pkg/discover"
+	"github.com/chasesaurabh/portctl/pkg/discover"
 )
 
 func sampleListeners() []discover.Listener {

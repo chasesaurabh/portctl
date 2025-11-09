@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kumarsaurabh/killport/pkg/discover"
-	"github.com/kumarsaurabh/killport/pkg/kill"
+	"github.com/chasesaurabh/portctl/pkg/discover"
+	"github.com/chasesaurabh/portctl/pkg/kill"
 )
 
 func runCLI(args []string) int {

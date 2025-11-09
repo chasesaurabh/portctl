@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/kumarsaurabh/killport/pkg/discover"
+	"github.com/chasesaurabh/portctl/pkg/discover"
 )
 
 func Text(w io.Writer, listeners []discover.Listener) {
