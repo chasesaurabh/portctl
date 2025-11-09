@@ -17,10 +17,21 @@ jobs:
         go-version: ['1.20']
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
       - name: Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go-version }}
 
@@ -28,15 +39,11 @@ jobs:
         run: chmod +x tests/integration/*.sh
 
 
-      - name: Ensure bash is installed (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y bash
-
-      - name: Install deps (Ubuntu)
+      - name: Install dependencies (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y lsof iproute2 python3 python3-pip
+          sudo apt-get install -y bash lsof iproute2 python3 python3-pip
 
       - name: Show go env
         run: go env

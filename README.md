@@ -17,14 +17,26 @@ Basic usage
 - Dry-run: show processes listening on port 8080
 
 ```bash
-./portctl --port 8080 --dry-run
+./portctl 8080 --dry-run
 ```
 
 - Force kill with SIGKILL after a 5s grace period
 
 ```bash
-./portctl --port 8080 --signal KILL --timeout 5s --force
+./portctl 8080 --signal KILL --timeout 5s --force --kill-after
 ```
+
+Flags
+
+- `--signal` (signal to send; available: TERM, KILL, INT, HUP)
+- `--dry-run` (show targets, do not send signals)
+- `--force` (do not prompt, force action)
+- `--timeout` (wait for graceful shutdown, e.g. 5s)
+- `--kill-after` (send SIGKILL after timeout if process still exists)
+- `--verbose` (verbose output)
+- `--format` (output format: text|json|csv)
+
+Note: The port is a required positional argument (not a flag).
 
 Formats
 
