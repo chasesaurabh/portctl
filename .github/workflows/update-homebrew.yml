@@ -66,14 +66,17 @@ jobs:
             SIG=""
           fi
 
-          PR_BODY="$(printf 'Automated update of Homebrew formula from %s\nAutomerge-Payload: %s\nAutomerge-Signature: %s' \"${GITHUB_REPOSITORY}\" \"${PAYLOAD}\" \"${SIG}\")"
 
-          # create PR using GitHub REST API to avoid requiring 'read:org' scope
+          PR_BODY="$(printf 'Automated update of Homebrew formula from %s\nAutomerge-Payload: %s\nAutomerge-Signature: %s' "${GITHUB_REPOSITORY}" "${PAYLOAD}" "${SIG}")"
+          echo "PR_BODY: $PR_BODY"
+
+          # Robust two-step jq approach for multiline PR body
           PR_PAYLOAD=$(jq -n --arg title "chore: update portctl formula" \
             --arg head "${BRANCH}" \
             --arg base "main" \
-            --arg body "$PR_BODY" \
+            --arg body "" \
             '{title: $title, head: $head, base: $base, body: $body}')
+          PR_PAYLOAD=$(echo "$PR_PAYLOAD" | jq --arg body "$PR_BODY" '.body = $body')
 
           PR_RESP=$(curl -s -X POST \
             -H "Authorization: token ${HOMEBREW_TAP_TOKEN}" \
