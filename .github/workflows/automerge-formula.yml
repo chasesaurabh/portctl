@@ -1,0 +1,141 @@
+name: Auto-merge portctl formula PRs
+
+permissions:
+  contents: write
+  pull-requests: write
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled]
+
+jobs:
+  validate-and-merge:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.pull_request.draft == false }}
+    steps:
+      - name: Validate PR origin and contents
+        id: validate
+        uses: actions/github-script@v6
+        with:
+          script: |
+            // Defensive validation: throw on error so the job stops and later steps don't try to parse empty outputs
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // Determine PR: prefer payload, but if it's missing or incorrect, find the open PR for this head branch
+            let pr = context.payload.pull_request;
+            let prNumber = pr && pr.number;
+            if (!prNumber) {
+              // If payload didn't include the PR we need, scan open PRs and pick one that modifies Formula/portctl.rb.
+              const openPRs = await github.paginate(github.rest.pulls.list, { owner, repo, state: 'open' });
+              let found = null;
+              // prefer the most recently created PRs first (they're the likely candidates)
+              openPRs.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+              for (const p of openPRs) {
+                // Only consider PRs from this repo (not cross-repo forks)
+                if (!p.head || !p.head.repo || p.head.repo.full_name !== `${owner}/${repo}`) continue;
+                const files = await github.paginate(github.rest.pulls.listFiles, { owner, repo, pull_number: p.number });
+                if (files.some(f => f.filename === 'Formula/portctl.rb')) {
+                  // Prefer PRs whose commits indicate they came from chasesaurabh/portctl or the actions bot
+                  const commits = await github.paginate(github.rest.pulls.listCommits, { owner, repo, pull_number: p.number });
+                  const commitMatches = commits.some(c =>
+                    (c.commit && c.commit.message && c.commit.message.includes('chasesaurabh/portctl')) ||
+                    (c.author && c.author.login && c.author.login === 'github-actions[bot]')
+                  );
+                  if (commitMatches) {
+                    found = p;
+                    break;
+                  }
+                  // Otherwise record it as a fallback candidate but keep searching for a better match
+                  if (!found) found = p;
+                }
+              }
+              if (!found) {
+                throw new Error('No open PR found that modifies Formula/portctl.rb');
+              }
+              pr = found;
+              prNumber = pr.number;
+            }
+
+            const body = (pr.body || "").toString();
+            // Debug: emit the PR body so we can see exactly what the action receives (temporary)
+            console.log('PR body raw: >>>' + body + '<<<');
+            console.log('PR body json: ' + JSON.stringify(body));
+            // Be tolerant: match payload/signature lines using regex (handles extra spaces, quotes, CRLF)
+            const payloadMatch = body.match(/^Automerge-Payload:\s*(.+)$/m);
+            const sigMatch = body.match(/^Automerge-Signature:\s*(.+)$/m);
+            if (!payloadMatch || !sigMatch) {
+              throw new Error('Missing Automerge-Payload or Automerge-Signature in PR body.');
+            }
+
+            // Extract and normalize values (strip surrounding quotes if present)
+            const rawPayload = payloadMatch[1].trim();
+            const rawSig = sigMatch[1].trim();
+            const payload = rawPayload.replace(/^"(.+)"$/, '$1');
+            const sigHex = rawSig.replace(/^"(.+)"$/, '$1');
+
+            const files = await github.paginate(github.rest.pulls.listFiles, { owner, repo, pull_number: prNumber });
+            if (files.length !== 1 || files[0].filename !== 'Formula/portctl.rb') {
+              throw new Error(`PR must change exactly Formula/portctl.rb. Files: ${files.map(f=>f.filename).join(', ')}`);
+            }
+
+            const commits = await github.paginate(github.rest.pulls.listCommits, { owner, repo, pull_number: prNumber });
+            const commitMatches = commits.some(c =>
+              (c.commit && c.commit.message && c.commit.message.includes('chasesaurabh/portctl')) ||
+              (c.author && c.author.login && c.author.login === 'github-actions[bot]')
+            );
+            if (!commitMatches) {
+              throw new Error('No commit indicates origin from chasesaurabh/portctl or was authored by actions bot.');
+            }
+
+            return { prNumber, payload, sigHex };
+
+      - name: Verify HMAC signature and merge
+        env:
+          AUTOMERGE_SHARED_SECRET: ${{ secrets.AUTOMERGE_SHARED_SECRET }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          PR_NUMBER: ${{ fromJson(steps.validate.outputs.result).prNumber }}
+          PAYLOAD: ${{ fromJson(steps.validate.outputs.result).payload }}
+          SIGHEX: ${{ fromJson(steps.validate.outputs.result).sigHex }}
+        run: |
+          set -euo pipefail
+          if [ -z "${AUTOMERGE_SHARED_SECRET:-}" ]; then
+            echo "AUTOMERGE_SHARED_SECRET not set, refusing to auto-merge" >&2
+            exit 1
+          fi
+
+          if [ -z "$PAYLOAD" ] || [ -z "$SIGHEX" ]; then
+            echo "Missing payload or signature outputs" >&2
+            exit 1
+          fi
+
+          CALC_SIG=$(printf "%s" "$PAYLOAD" | openssl dgst -sha256 -hmac "${AUTOMERGE_SHARED_SECRET}" -binary | xxd -p -c 256)
+          if [ "$CALC_SIG" != "$SIGHEX" ]; then
+            echo "Signature mismatch: expected $SIGHEX computed $CALC_SIG" >&2
+            echo "Refusing to merge." >&2
+            exit 1
+          fi
+
+          PR_JSON=$(curl -s -H "Accept: application/vnd.github+json" -H "Authorization: token ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}")
+          MERGEABLE_STATE=$(echo "$PR_JSON" | python3 -c "import sys, json; print(json.load(sys.stdin).get('mergeable_state'))")
+          echo "mergeable_state=$MERGEABLE_STATE"
+          if [ "$MERGEABLE_STATE" = "dirty" ] || [ "$MERGEABLE_STATE" = "blocked" ] || [ "$MERGEABLE_STATE" = "unknown" ]; then
+            echo "PR not in acceptable mergeable state: $MERGEABLE_STATE" >&2
+            exit 1
+          fi
+
+          MERGE_RESP=$(curl -s -X PUT \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            "https://api.github.com/repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/merge" \
+            -d '{"merge_method":"merge"}')
+
+          MERGED=$(echo "$MERGE_RESP" | python3 -c "import sys, json; print(json.load(sys.stdin).get('merged', False))")
+          if [ "$MERGED" != "True" ] && [ "$MERGED" != "true" ]; then
+            echo "Merge failed. Response: $MERGE_RESP" >&2
+            exit 1
+          fi
+          echo "Merged PR #${PR_NUMBER} successfully."

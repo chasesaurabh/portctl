@@ -1,6 +1,3 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
 echo "Running integration tests..."
 cd "$(dirname "$0")"
 
