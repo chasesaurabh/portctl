@@ -14,6 +14,7 @@ jobs:
     if: ${{ github.event.pull_request.draft == false }}
     steps:
       - name: Validate PR origin and contents
+        # If you add a checkout step, use fetch-depth: 1 for speed
         id: validate
         uses: actions/github-script@v6
         with:
