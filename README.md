@@ -1,6 +1,23 @@
 # portctl
 
+
 portctl is a small cross-platform CLI to discover and (optionally) kill processes listening on a TCP port.
+
+## Install via Homebrew
+
+You can install portctl using Homebrew:
+
+```bash
+brew tap chasesaurabh/homebrew-portctl
+brew install portctl
+```
+
+After installation, you can run:
+
+```bash
+portctl --help
+```
+
 
 Quick install (development)
 
@@ -12,18 +29,28 @@ make build
 ./portctl --help
 ```
 
+
 Basic usage
+
+You can specify the port either as a positional argument or with the --port flag:
 
 - Dry-run: show processes listening on port 8080
 
 ```bash
+./portctl 8080 --dry-run
+# Using --port flag
+./portctl --port 8080 --dry-run
+# Or as a positional argument
 ./portctl 8080 --dry-run
 ```
 
 - Force kill with SIGKILL after a 5s grace period
 
 ```bash
-./portctl 8080 --signal KILL --timeout 5s --force --kill-after
+# Using --port flag
+./portctl --port 8080 --signal KILL --timeout 5s --force
+# Or simply argument
+./portctl 8080 --signal KILL --timeout 5s --force
 ```
 
 Flags

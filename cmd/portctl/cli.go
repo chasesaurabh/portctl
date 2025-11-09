@@ -11,7 +11,9 @@ import (
 
 func runCLI(args []string) int {
 	cfg := defaultConfig()
+
 	fs := flag.NewFlagSet("portctl", flag.ContinueOnError)
+	portFlag := fs.String("port", "", "TCP port to operate on (alternative to positional argument)")
 	signal := fs.String("signal", cfg.Signal, "Signal to send (name or number)")
 	dryRun := fs.Bool("dry-run", cfg.DryRun, "Show targets but do not send signals")
 	force := fs.Bool("force", cfg.Force, "Do not prompt; force action")
@@ -26,12 +28,16 @@ func runCLI(args []string) int {
 		return 1
 	}
 
-	if fs.NArg() < 1 {
-		fs.Usage()
-		return 1
-	}
-
-	cfg.Port = fs.Arg(0)
+       // Accept port from --port or positional argument
+       if *portFlag != "" {
+	       cfg.Port = *portFlag
+       } else if fs.NArg() >= 1 {
+	       cfg.Port = fs.Arg(0)
+       } else {
+	       fmt.Fprintln(os.Stderr, "Usage: portctl [--port PORT] [flags] PORT")
+	       fs.Usage()
+	       return 1
+       }
 	cfg.Signal = *signal
 	cfg.DryRun = *dryRun
 	cfg.Force = *force
