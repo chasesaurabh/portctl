@@ -89,7 +89,9 @@ jobs:
               throw new Error('No commit indicates origin from chasesaurabh/portctl or was authored by actions bot.');
             }
 
-            return { prNumber, payload, sigHex };
+            core.setOutput('prNumber', prNumber);
+            core.setOutput('payload', payload);
+            core.setOutput('sigHex', sigHex);
 
       - name: Verify HMAC signature and merge
         env:
@@ -97,9 +99,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name }}
-          PR_NUMBER: ${{ fromJson(steps.validate.outputs.result).prNumber }}
-          PAYLOAD: ${{ fromJson(steps.validate.outputs.result).payload }}
-          SIGHEX: ${{ fromJson(steps.validate.outputs.result).sigHex }}
+          PR_NUMBER: ${{ steps.validate.outputs.prNumber }}
+          PAYLOAD: ${{ steps.validate.outputs.payload }}
+          SIGHEX: ${{ steps.validate.outputs.sigHex }}
         run: |
           set -euo pipefail
           if [ -z "${AUTOMERGE_SHARED_SECRET:-}" ]; then
