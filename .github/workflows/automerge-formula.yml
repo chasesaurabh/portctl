@@ -5,8 +5,8 @@ permissions:
   pull-requests: write
 
 on:
-  pull_request:
-    types: [opened, reopened, synchronize, labeled]
+  release:
+    types: [published]
 
 jobs:
   validate-and-merge:
