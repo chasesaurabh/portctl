@@ -1,0 +1,8 @@
+# Ensure shell scripts use LF line endings on checkout
+*.sh text eol=lf
+
+# Ensure YAML and other text files use LF
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+README.* text eol=lf
