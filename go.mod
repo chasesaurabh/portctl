@@ -1,3 +1,3 @@
-module github.com/kumarsaurabh/killport
+module github.com/chasesaurabh/portctl
 
 go 1.20
